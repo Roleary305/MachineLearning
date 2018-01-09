@@ -4,7 +4,7 @@ library(caret)
 library(parallel)
 library(doParallel)
 set.seed(12097)
-cluster <- makeCluster(detectCores() - 1) # convention to leave 1 core for OS
+cluster <- makeCluster(detectCores() - 1) 
 registerDoParallel(cluster)
 
 factorNumeric <- function(x) {
@@ -58,7 +58,7 @@ we are going to fit a random forest model as it is useful for predicting categor
 ```{r, cache = TRUE}
 trainctrl <- trainControl(method = "cv", number = 10, allowParallel = TRUE)
 fit <- train(scaledTrain ,outcome,  method = "rf",  trControl = trainctrl)
-fit$reults
+fit$results
 ```
 
 As we can see above we get a accuracey of `r fit$results[1,2] `  

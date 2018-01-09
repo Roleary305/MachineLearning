@@ -121,15 +121,15 @@ $(document).ready(function () {
 </div>
 
 
-<pre class="r"><code>library(caret)</code></pre>
-<pre><code>## Loading required package: lattice</code></pre>
+<pre class="r"><code>library(lattice)
+library(caret)</code></pre>
 <pre><code>## Loading required package: ggplot2</code></pre>
 <pre class="r"><code>library(parallel)
 library(doParallel)</code></pre>
 <pre><code>## Loading required package: foreach</code></pre>
 <pre><code>## Loading required package: iterators</code></pre>
 <pre class="r"><code>set.seed(12097)
-cluster &lt;- makeCluster(detectCores() - 1) # convention to leave 1 core for OS
+cluster &lt;- makeCluster(detectCores() - 1) 
 registerDoParallel(cluster)
 
 factorNumeric &lt;- function(x) {
@@ -138,23 +138,21 @@ factorNumeric &lt;- function(x) {
 }</code></pre>
 <div id="get-and-clean-training-data" class="section level1">
 <h1>Get and Clean Training Data</h1>
-<p>The training data set is downloaded from the link. It is a 160 variables, 1 outcome and 159 potential predictor. The predictors are mostly readings from sensors and have a numeric value, several of these are stored as factors. In order to eleminate issues with factor variables all factors are converted to numeric. The names of the participant is converted back to a factor. Doing so causes a loss of the actual name data, but the algorithm doesnt need to know the name as we are not trying to predict who. The variables are all checked for any with near zero variance, they are all removed.</p>
+<p>The training data set is downloaded from the link. It is a 160 variables, 1 outcome and 159 potential predictor. The predictors are mostly readings from sensors and have a numeric value, several of these are stored as factors. In order to eleminate issues with factor variables all factors are converted to numeric. A check is done to find variables with near zero variance, those as well as the name, row and timestamps are alos removed.</p>
 <pre class="r"><code>trainSet &lt;- read.csv(&quot;https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv&quot;)
 outcome &lt;- trainSet[, 160]
 trainSet &lt;- trainSet[, -160]
 trainSet &lt;- sapply(trainSet, factorNumeric)
 n &lt;- nearZeroVar(trainSet, allowParallel = TRUE, saveMetrics = FALSE)
-trainSet &lt;- as.data.frame(trainSet[,-c(n, 1)])
-trainSet[, 2] &lt;- as.factor(trainSet[, 1])</code></pre>
+trainSet &lt;- as.data.frame(trainSet[,-c(n, 1,2,3,4)])</code></pre>
 </div>
 <div id="get-and-clean-test-data" class="section level1">
 <h1>Get and Clean Test Data</h1>
-<p>the test data is downloaded and put through all the same transformations as the training data. The only difference is we do not calculate the near zero variance, but instead remove the same variables as we did the training data. This is to avoid training on the test set.</p>
+<p>The test data is downloaded and put through all the same transformations as the training data. The only difference is we do not calculate the near zero variance, but instead remove the same variables as we did the training data. This is to avoid any training on the test set.</p>
 <pre class="r"><code>testSet &lt;- read.csv(&quot;https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv&quot;)
 testSet &lt;- testSet[, - c(160)]
 testSet &lt;- sapply(testSet, factorNumeric)
-testSet &lt;- as.data.frame(testSet[,-c(n,1)])
-testSet[, 2] &lt;- as.factor(testSet[, 1])</code></pre>
+testSet &lt;- as.data.frame(testSet[,-c(n,1,2,3,4)])</code></pre>
 </div>
 <div id="pre-proccessing" class="section level1">
 <h1>Pre Proccessing</h1>
@@ -164,15 +162,16 @@ scaledTrain &lt;- predict(preProc, trainSet, allowParallel = TRUE)</code></pre>
 </div>
 <div id="training-model" class="section level1">
 <h1>Training Model</h1>
-<p>we are going to fit a random forest model as it is useful for predicting categorical data.</p>
+<p>we are going to fit a random forest model as it is useful for predicting categorical data. In order to increase the accuracy we are going to use cross validation.</p>
 <pre class="r"><code>trainctrl &lt;- trainControl(method = &quot;cv&quot;, number = 10, allowParallel = TRUE)
 fit &lt;- train(scaledTrain ,outcome,  method = &quot;rf&quot;,  trControl = trainctrl)
 fit$results</code></pre>
 <pre><code>##   mtry  Accuracy     Kappa  AccuracySD     KappaSD
-## 1    2 0.9809395 0.9758888 0.004036461 0.005107001
-## 2   19 0.9776778 0.9717620 0.003954795 0.005004719
-## 3   37 0.9696251 0.9615767 0.004495150 0.005687215</code></pre>
-<p>As we can see above we get a accuracey of</p>
+## 1    2 0.9791552 0.9736308 0.004488104 0.005678599
+## 2   18 0.9776780 0.9717625 0.003650285 0.004619735
+## 3   35 0.9696767 0.9616450 0.004079723 0.005158262</code></pre>
+<p>As we can see above we get a accuracey of 0.9791552<br />
+This is our in sample prediction, a smaller prediction rate would be expected for our out of sample data.</p>
 </div>
 <div id="making-new-predictions" class="section level1">
 <h1>Making new predictions</h1>
