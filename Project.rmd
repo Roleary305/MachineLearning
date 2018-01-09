@@ -1,0 +1,84 @@
+```{r, warning = FALSE}
+library(lattice)
+library(caret)
+library(parallel)
+library(doParallel)
+set.seed(12097)
+cluster <- makeCluster(detectCores() - 1) # convention to leave 1 core for OS
+registerDoParallel(cluster)
+
+factorNumeric <- function(x) {
+    if (class(x) == 'factor') { x = as.numeric(x) }
+    return(x)
+}
+```
+
+
+#Get and Clean Training Data
+
+The training data set is downloaded from the link. It is a 160 variables, 1 outcome and 159 potential predictor. The predictors are mostly readings from sensors and have a numeric value, several of these are stored as factors. In order to eleminate issues with factor variables all factors are converted to numeric. A check is done to find variables with near zero variance, those as well as the name, row and timestamps are alos removed. 
+
+```{r, cahce = TRUE}
+trainSet <- read.csv("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv")
+outcome <- trainSet[, 160]
+trainSet <- trainSet[, -160]
+trainSet <- sapply(trainSet, factorNumeric)
+n <- nearZeroVar(trainSet, allowParallel = TRUE, saveMetrics = FALSE)
+trainSet <- as.data.frame(trainSet[,-c(n, 1,2,3,4)])
+
+```
+
+
+#Get and Clean Test Data
+
+The test data is downloaded and put through all the same transformations as the training data. The only difference is we do not calculate the near zero variance, but instead remove the same variables as we did the training data. This is to avoid any training on the test set.
+
+```{r, cache = TRUE}
+testSet <- read.csv("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv")
+testSet <- testSet[, - c(160)]
+testSet <- sapply(testSet, factorNumeric)
+testSet <- as.data.frame(testSet[,-c(n,1,2,3,4)])
+
+```
+
+
+#Pre Proccessing
+Due to the large number of variables and NA's we are going to perform some pre proccessing. Principle Component Analysis to reduce the number of variables, and knnImpute replace the NA values with imputed data.  
+
+```{r, cache = TRUE}
+preProc <- preProcess(trainSet, method = c("pca", "knnImpute"))
+scaledTrain <- predict(preProc, trainSet, allowParallel = TRUE)
+```
+
+
+#Training Model
+
+we are going to fit a random forest model as it is useful for predicting categorical data. In order to increase the accuracy we are going to use cross validation.
+
+```{r, cache = TRUE}
+trainctrl <- trainControl(method = "cv", number = 10, allowParallel = TRUE)
+fit <- train(scaledTrain ,outcome,  method = "rf",  trControl = trainctrl)
+fit$reults
+```
+
+As we can see above we get a accuracey of `r fit$results[1,2] `  
+This is our in sample prediction, a smaller prediction rate would be expected for our out of sample data.
+
+
+#Making new predictions
+
+We take the test data and  perform all the same pre proccessing as we did the training data set.  
+```{r}
+unknown_new <- predict(preProc, testSet)
+predictions <- predict(fit, newdata = unknown_new)
+table(predictions)
+print(predictions)
+```
+Printed is a list of the algorithms predictions which ended up being correct for 19/20 cases.
+
+```{r}
+stopCluster(cluster)
+registerDoSEQ()
+```
+
+
